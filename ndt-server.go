@@ -152,6 +152,16 @@ func parseDeploymentLabels() []metadata.NameValue {
 	return serverMetadata
 }
 
+func cors(fs http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// do your cors stuff
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// return if you do not want the FileServer handle a specific request
+
+		fs.ServeHTTP(w, r)
+	}
+}
+
 // Set internal lame duck status and metric.
 func setLameDuck(status float64) {
 	isLameDuck = status != 0
@@ -220,7 +230,8 @@ func main() {
 	// The ndt5 protocol serving Ws-based tests. Most clients are hard-coded to
 	// connect to the raw server, which will forward things along.
 	ndt5WsMux := http.NewServeMux()
-	ndt5WsMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
+	ndt5Wsfs := http.FileServer(http.Dir(*htmlDir))
+	ndt5WsMux.Handle("/", cors(ndt5Wsfs))
 	ndt5WsMux.Handle("/ndt_protocol", ndt5handler.NewWS(*dataDir+"/ndt5", serverMetadata))
 	ndt5WsServer := httpServer(
 		*ndt5WsAddr,
@@ -234,7 +245,8 @@ func main() {
 
 	// The ndt7 listener serving up NDT7 tests, likely on standard ports.
 	ndt7Mux := http.NewServeMux()
-	ndt7Mux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
+	ndt7fs := http.FileServer(http.Dir(*htmlDir))
+	ndt7Mux.Handle("/", cors(ndt7fs))
 	ndt7Handler := &handler.Handler{
 		DataDir:        *dataDir,
 		SecurePort:     *ndt7Addr,
@@ -255,7 +267,8 @@ func main() {
 	if *certFile != "" && *keyFile != "" {
 		// The ndt5 protocol serving WsS-based tests.
 		ndt5WssMux := http.NewServeMux()
-		ndt5WssMux.Handle("/", http.FileServer(http.Dir(*htmlDir)))
+		ndt5fs := http.FileServer(http.Dir(*htmlDir))
+		ndt5WssMux.Handle("/", cors(ndt5fs))
 		ndt5WssMux.Handle("/ndt_protocol", ndt5handler.NewWSS(*dataDir+"/ndt5", *certFile, *keyFile, serverMetadata))
 		ndt5WssServer := httpServer(
 			*ndt5WssAddr,
